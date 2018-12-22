@@ -41,7 +41,7 @@ class GINConv(torch.nn.Module):
         """"""
         x_in = x_in.unsqueeze(-1) if x_in.dim() == 1 else x_in
         edge_index, _ = remove_self_loops(edge_index)
-        row, col = edge_index
+        row, col = edge_index # i,j  th index for nodes
 
         sums = (1 + self.eps) * x_in + scatter_add(x_in[col], row, dim=0, dim_size=x_in.size(0)) # eq 4.1
         out = self.mlp(sums)
