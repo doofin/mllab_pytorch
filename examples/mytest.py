@@ -61,11 +61,6 @@ class Net(torch.nn.Module):
 
 def train(epoch, modelp):
     modelp.train()
-
-    if epoch == 51:
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = 0.5 * param_group['lr']
-
     loss_all = 0
     for data in train_loader:
         data = data.to(device)

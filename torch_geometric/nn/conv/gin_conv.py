@@ -25,7 +25,7 @@ class GINConv(torch.nn.Module):
 
     def __init__(self, nn, eps=0, train_eps=False):
         super(GINConv, self).__init__()
-        self.nn = nn
+        self.mlp = nn
         self.initial_eps = eps
         if train_eps:
             self.eps = torch.nn.Parameter(torch.Tensor([eps]))
@@ -34,19 +34,18 @@ class GINConv(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        reset(self.nn)
+        reset(self.mlp)
         self.eps.data.fill_(self.initial_eps)
 
-    def forward(self, x, edge_index):
+    def forward(self, x_in, edge_index):
         """"""
-        x = x.unsqueeze(-1) if x.dim() == 1 else x
+        x_in = x_in.unsqueeze(-1) if x_in.dim() == 1 else x_in
         edge_index, _ = remove_self_loops(edge_index)
         row, col = edge_index
 
-        out = scatter_add(x[col], row, dim=0, dim_size=x.size(0))
-        out = (1 + self.eps) * x + out
-        out = self.nn(out)
+        sums = (1 + self.eps) * x_in + scatter_add(x_in[col], row, dim=0, dim_size=x_in.size(0)) # eq 4.1
+        out = self.mlp(sums)
         return out
 
     def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, self.nn)
+        return '{}({})'.format(self.__class__.__name__, self.mlp)
