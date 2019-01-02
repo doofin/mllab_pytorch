@@ -62,6 +62,8 @@ class GCNConv(MessagePassing):
         edge_weight = torch.cat([edge_weight, loop_weight], dim=0)
 
         row, col = edge_index
+
+        # while(1):{}
         deg = scatter_add(edge_weight, row, dim=0, dim_size=x.size(0))
         deg_inv = deg.pow(-0.5)
         deg_inv[deg_inv == float('inf')] = 0

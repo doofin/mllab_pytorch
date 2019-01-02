@@ -6,12 +6,6 @@ from torch_geometric.datasets import Planetoid
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, ChebConv  # noqa
 
-dataset = 'Cora'
-path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
-dataset = Planetoid(path, dataset, T.NormalizeFeatures())
-data = dataset[0]
-
-
 class Net(torch.nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -22,12 +16,21 @@ class Net(torch.nn.Module):
 
     def forward(self):
         x, edge_index = data.x, data.edge_index
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.dropout(x, training=self.training)
-        x = self.conv2(x, edge_index)
+        print(x,x.shape)
+        print(edge_index,edge_index.shape)
+        row,col=edge_index
+        print(row.shape,col.shape)
+        # print(row)
+        while(1):{}
+        x = self.conv2(F.dropout(F.relu(self.conv1(x, edge_index)), training=self.training), edge_index)
         return F.log_softmax(x, dim=1)
 
 
+dataset = 'Cora'
+path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
+dataset = Planetoid(path, dataset, T.NormalizeFeatures())
+data = dataset[0]
+# print(data)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model, data = Net().to(device), data.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
@@ -36,7 +39,10 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
 def train():
     model.train()
     optimizer.zero_grad()
-    F.nll_loss(model()[data.train_mask], data.y[data.train_mask]).backward()
+    ypred = model()[data.train_mask]
+    y = data.y[data.train_mask]
+
+    F.nll_loss(ypred, y).backward()
     optimizer.step()
 
 

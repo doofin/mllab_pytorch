@@ -2,8 +2,20 @@ import torch
 from torch_scatter import scatter_add
 from torch_geometric.utils import remove_self_loops
 
-from ..inits import reset
+# from ..inits import reset
 
+
+def reset(nn):
+    def _reset(item):
+        if hasattr(item, 'reset_parameters'):
+            item.reset_parameters()
+
+    if nn is not None:
+        if hasattr(nn, 'children') and len(list(nn.children())) > 0:
+            for item in nn.children():
+                _reset(item)
+        else:
+            _reset(nn)
 
 class GINConv(torch.nn.Module):
     r"""The graph isomorphism operator from the `"How Powerful are
@@ -42,6 +54,7 @@ class GINConv(torch.nn.Module):
         x_in = x_in.unsqueeze(-1) if x_in.dim() == 1 else x_in
         edge_index, _ = remove_self_loops(edge_index)
         row, col = edge_index # i,j  th index for nodes
+        print("gin forward",edge_index.shape ,row.shape)
 
         sums = (1 + self.eps) * x_in + scatter_add(x_in[col], row, dim=0, dim_size=x_in.size(0)) # eq 4.1
         out = self.mlp(sums)
