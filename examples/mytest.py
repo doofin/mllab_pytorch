@@ -105,6 +105,7 @@ def test(dataset):
     return correct / len(dataset)
 
 
+def newtensor(x):return torch.tensor(x)
 def newData(nodeFeats,edgeSyms,graphLab):
     return Data(x=torch.tensor(nodeFeats, dtype=torch.float), # node features
                 edge_index=torch.tensor(edgeSyms).t().contiguous(), # edge
@@ -116,11 +117,46 @@ dt2=newData([[-1], [0], [1],[1],[1]],
              [1, 2],
              [2, 1]],
             [0,1])
-for epoch in range(1, 2):
-    train(dt2)
-    test([dt2])
+
+def startT():
+    for epoch in range(1, 2):
+        train(dt2)
+        test([dt2])
+def trainOnce(ndfeats,edge,graphlab):
+    dt=newData(ndfeats,edge,graphlab)
+    train(dt)
 
 
+# [([ndsFeat],[edges],graphlab)]
+def readAsStrList(fn):
+    f=open(fn, 'r')
+    r=f.read().strip().split('\n')
+    f.close()
+    return r
+
+def fmap(f,xs):return list(map(f,xs))
+
+def readdata():
+    readf = lambda x: (readAsStrList(x + ".n"),
+                       readAsStrList(x + ".e"),
+                       readAsStrList(x + ".g"))
+
+    files=fmap(readf, ["/home/da/mass/gdata/"+ str(i) for i in range(0, 1)])
+    print(files)
+    def edg(e):
+        es=e.split(',')
+        return (int(es[0]),int(es[1]))
+    datas=fmap(lambda aNodeFeat, aEdges, gLabs:(fmap(lambda xx:fmap(lambda x:int(x),xx.split(',')), aNodeFeat),
+                                                fmap(edg,)))
+
+
+readdata()
+def printarr(x):
+    # newData(x,[],[])
+    t1=newtensor(x)
+    for epoch in range(1, 2):
+        print(t1)
+    #     print(type(x))
 # edge_index = torch.tensor([[0, 1],
 #                            [1, 0],
 #                            [1, 2],
