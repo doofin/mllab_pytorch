@@ -106,9 +106,9 @@ def test(dataset):
 
 
 def newData(nodeFeats,edgeSyms,graphLab):
-    return Data(x=torch.tensor(nodeFeats, dtype=torch.float),
-                edge_index=torch.tensor(edgeSyms).t().contiguous(),
-                y=torch.tensor(graphLab))
+    return Data(x=torch.tensor(nodeFeats, dtype=torch.float), # node features
+                edge_index=torch.tensor(edgeSyms).t().contiguous(), # edge
+                y=torch.tensor(graphLab)) #graph label
 
 dt2=newData([[-1], [0], [1],[1],[1]],
             [[0, 1],
