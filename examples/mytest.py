@@ -5,72 +5,123 @@ import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU
 from torch_geometric.datasets import TUDataset
 from torch_geometric.data import DataLoader
-from torch_geometric.nn import GINConv, global_add_pool
+from torch_geometric.nn import GCNConv,GINConv,GATConv,SplineConv
 from fn import _
 # from fn.iters import *
 from torch_geometric.data import Data
 
-class Net(torch.nn.Module):
+# num_features = 1
+num_features = 61
+num_classes=2
+
+class splineN(torch.nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
-        num_features = 1
-        num_classes=2
-        dim = 32
+        super(splineN, self).__init__()
+        self.conv1 = SplineConv(num_features, 16, dim=1, kernel_size=2)
+        self.conv2 = SplineConv(16, num_classes, dim=1, kernel_size=2)
+
+    def forward(self, x, edge_index,edge_attr,dropout):
+        # x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        x = F.dropout(x, training=self.training)
+        x = F.elu(self.conv1(x, edge_index, edge_attr))
+        x = F.dropout(x, training=self.training)
+        x = self.conv2(x, edge_index, edge_attr)
+        return F.log_softmax(x, dim=1)
+
+class gatN(torch.nn.Module):
+    def __init__(self):
+        super(gatN, self).__init__()
+        self.att1 = GATConv(num_features, 8, heads=8, dropout=0.6)
+        self.att2 = GATConv(8 * 8, num_classes, dropout=0.6)
+
+    def forward(self, x, edge_index,dropout):
+        x = F.dropout(x, p=0.6, training=self.training)
+        x = F.elu(self.att1(x, edge_index))
+        x = F.dropout(x, p=0.6, training=self.training)
+        x = self.att2(x, edge_index)
+        return F.log_softmax(x, dim=1)
+
+class gcnNet(torch.nn.Module):
+    def __init__(self):
+        super(gcnNet, self).__init__()
+        self.conv1 = GCNConv(num_features, 16, improved=False)
+        self.conv2 = GCNConv(16, num_classes, improved=False)
+        # self.conv1 = ChebConv(data.num_features, 16, K=2)
+        # self.conv2 = ChebConv(16, data.num_features, K=2)
+
+    def forward(self, x, edge_index,dropout):
+        # x, edge_index = data.x, data.edge_index
+        # print(x,x.shape)
+        # print(edge_index,edge_index.shape)
+        row,col=edge_index
+        # print(row.shape,col.shape)
+        # print(row)
+        x = self.conv2(F.dropout(F.relu(self.conv1(x, edge_index)), training=self.training), edge_index)
+        return F.log_softmax(x, dim=1)
+
+class ginNet(torch.nn.Module):
+    def __init__(self):
+        super(ginNet, self).__init__()
+        dimHid = 32
         # sum mlp : ln -> relu ->ln
-        nn1 = Sequential(Linear(num_features, dim), ReLU(), Linear(dim, dim))
+        nn1 = Sequential(Linear(num_features, dimHid), ReLU(), Linear(dimHid, dimHid))
         self.conv1 = GINConv(nn1)
-        self.bn1 = torch.nn.BatchNorm1d(dim) # normalize data
+        self.bn1 = torch.nn.BatchNorm1d(dimHid) # normalize data
 
-        nn2 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        nn2 = Sequential(Linear(dimHid, dimHid), ReLU(), Linear(dimHid, dimHid))
         self.conv2 = GINConv(nn2)
-        self.bn2 = torch.nn.BatchNorm1d(dim)
+        self.bn2 = torch.nn.BatchNorm1d(dimHid)
 
-        nn3 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        nn3 = Sequential(Linear(dimHid, dimHid), ReLU(), Linear(dimHid, dimHid))
         self.conv3 = GINConv(nn3)
-        self.bn3 = torch.nn.BatchNorm1d(dim)
+        self.bn3 = torch.nn.BatchNorm1d(dimHid)
 
-        nn4 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        nn4 = Sequential(Linear(dimHid, dimHid), ReLU(), Linear(dimHid, dimHid))
         self.conv4 = GINConv(nn4)
-        self.bn4 = torch.nn.BatchNorm1d(dim)
+        self.bn4 = torch.nn.BatchNorm1d(dimHid)
 
-        nn5 = Sequential(Linear(dim, dim), ReLU(), Linear(dim, dim))
+        nn5 = Sequential(Linear(dimHid, dimHid), ReLU(), Linear(dimHid, dimHid))
         self.conv5 = GINConv(nn5)
-        self.bn5 = torch.nn.BatchNorm1d(dim)
+        self.bn5 = torch.nn.BatchNorm1d(dimHid)
 
         # read out
-        self.fc1 = Linear(dim, dim)
-        self.fc2 = Linear(dim, num_classes)
+        self.fc1 = Linear(dimHid, dimHid)
+        self.fc2 = Linear(dimHid, num_classes)
 
-    def forward(self, x, edge_index):
-        print("x",x)
+    def forward(self, x, edge_index,dropout):
+        # print("x",x)
+
         x = F.relu(self.conv1(x, edge_index))
-
-
         x = self.bn1(x)
         x = F.relu(self.conv2(x, edge_index))
         x = self.bn2(x)
+
         x = F.relu(self.conv3(x, edge_index))
         x = self.bn3(x)
         x = F.relu(self.conv4(x, edge_index))
         x = self.bn4(x)
         x = F.relu(self.conv5(x, edge_index))
-        # print("pre norm ",x)
         x = self.bn5(x)
+
+        # print("pre norm ",x)
         # print("normed ",x)
         # x = global_add_pool(x, 3)
 
         x = F.relu(self.fc1(x))
         # print("fc1",x.shape)
-        x = F.dropout(x, p=0.5, training=self.training)
+        # x = F.dropout(x, p=0.5, training=self.training)
+        # x = F.dropout(x, p=0.5, training=dropout)
         x = self.fc2(x)
         # print("fc2",x.shape)
         # while(1):{}
-        print("x2",x)
+        # print("x2",x)
         softmaxed = F.log_softmax(x, dim=-1)
         return softmaxed
 
-model = Net()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+# model = ginNet() # best
+# model = gcnNet()
+model = gatN()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
 
 # graph level.for node classify,add weight to the node?
@@ -80,7 +131,7 @@ def train(data):
     optimizer.zero_grad()
 
     x_in = data.x
-    output = modelp(x_in, data.edge_index) # forward(self, x, edge_index, batch):
+    output = modelp(x_in, data.edge_index,True) # forward(self, x, edge_index, batch):
     # print("x shape" ,x_in.shape , data.edge_index.shape)
     outputT = torch.t(output)
     # print(outputT.shape, data.y.shape)
@@ -89,20 +140,32 @@ def train(data):
     loss.backward()
     loss_all = loss.item()
     optimizer.step()
-    print(loss_all)
+    # print(loss_all)
     return loss_all
 
 def test(dataset):
     modelp=model
     modelp.eval()
     correct = 0
+    datasetLen = len(dataset)
     for data in dataset:
-        output = modelp(data.x, data.edge_index)
+        yreal = data.y
+        output = modelp(data.x, data.edge_index,False)
         pred = output.max(dim=0)[1]
-        print("pred : ",pred,"real : " ,data.y)
-        correct += pred.eq(data.y).sum().item()
-        print("corr",correct)
-    return correct / len(dataset)
+        yrealI=torch.argmax(yreal)
+        ypredI = torch.argmax(pred)
+        eqTotal=0
+        isEq = yrealI.eq(ypredI).item() # 0 or 1
+        eqTotal+=isEq
+        # print("pred", pred, ypredI, "yreal", yrealI, "boo", isEq)
+        # print("corr ",isEq)
+        # while(1):{}
+        # print("pred : ",pred,"real : " ,data.y)
+        # correct += pred.eq(yreal).sum().item()
+        correct += isEq
+    corr = correct / datasetLen
+    print("corr :" ,corr)
+    return corr
 
 
 def newtensor(x):return torch.tensor(x)
@@ -128,7 +191,7 @@ def trainOnce(ndfeats,edge,graphlab):
 
 
 # [([ndsFeat],[edges],graphlab)]
-def readAsStrList(fn):
+def readAsLines(fn):
     f=open(fn, 'r')
     r=f.read().strip().split('\n')
     f.close()
@@ -137,24 +200,53 @@ def readAsStrList(fn):
 def fmap(f,xs):return list(map(f,xs))
 
 def readdata():
-    readf = lambda x: (readAsStrList(x + ".n"),
-                       readAsStrList(x + ".e"),
-                       readAsStrList(x + ".g"))
+    graphList = lambda x: (readAsLines(x + ".n"),
+                       readAsLines(x + ".e"),
+                       readAsLines(x + ".g"))
 
-    files=fmap(readf, ["/home/da/mass/gdata/"+ str(i) for i in range(0, 1)])
-    print(files)
+    # [([ndsFeatStr],[edges],graphlab)]
+    # gdata
+    # pat="/home/da/mass/n4jdata1/"
+    pat="/home/da/mass/gdata/"
+    graphListTup=fmap(graphList, [pat+ str(i) for i in range(0, 280)])
+    # print(graphListTup)
     def edg(e):
         es=e.split(',')
         return (int(es[0]),int(es[1]))
-    datas=fmap(lambda aNodeFeat, aEdges, gLabs:(fmap(lambda xx:fmap(lambda x:int(x),xx.split(',')), aNodeFeat),
-                                                fmap(edg,)))
 
+    splitByComma = lambda xx: fmap(lambda x: int(x), xx.split(','))
+    # [([ndsFeat Seq],[edgesTup],graphlab Seq)]
 
-readdata()
+    tst = graphListTup[0][2]
+    # print(tst)
+    print(newtensor([1,0]).shape)
+    # print("ts")
+    # print(newtensor(fmap(nodeFeatF,tst)).reshape(2))
+    datas=fmap(lambda x:(fmap(splitByComma, x[0]),
+                                                           fmap(edg, x[1]),
+                                                           flatten(fmap(splitByComma,x[2]))),
+               graphListTup)
+    # print(datas[0])
+    return datas
+
+flatten = lambda l: [item for sublist in l for item in sublist]
+def start():
+    dataset = readdata()
+    splitat=21
+    dataOk=fmap(lambda x:newData(x[0],x[1],x[2]),dataset)
+    trainset=dataOk[splitat:]
+    testset=dataOk[:splitat]
+
+    for epoch in range(1, 300):
+        test(testset)
+        for dat in trainset:
+            train(dat)
+
+start()
 def printarr(x):
     # newData(x,[],[])
     t1=newtensor(x)
-    for epoch in range(1, 2):
+    for epoch in range(1, 200):
         print(t1)
     #     print(type(x))
 # edge_index = torch.tensor([[0, 1],
