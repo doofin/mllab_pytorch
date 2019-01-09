@@ -1,5 +1,4 @@
 import os.path as osp
-
 import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU
@@ -13,7 +12,7 @@ from torch_geometric.data import Data
 # num_features = 1
 num_features = 61
 num_classes=2
-
+dimHid = 32
 class splineN(torch.nn.Module):
     def __init__(self):
         super(splineN, self).__init__()
@@ -44,25 +43,19 @@ class gatN(torch.nn.Module):
 class gcnNet(torch.nn.Module):
     def __init__(self):
         super(gcnNet, self).__init__()
-        self.conv1 = GCNConv(num_features, 16, improved=False)
-        self.conv2 = GCNConv(16, num_classes, improved=False)
+        self.conv1 = GCNConv(num_features, dimHid, improved=False)
+        self.conv2 = GCNConv(dimHid, num_classes, improved=False)
         # self.conv1 = ChebConv(data.num_features, 16, K=2)
         # self.conv2 = ChebConv(16, data.num_features, K=2)
 
     def forward(self, x, edge_index,dropout):
-        # x, edge_index = data.x, data.edge_index
-        # print(x,x.shape)
-        # print(edge_index,edge_index.shape)
-        row,col=edge_index
-        # print(row.shape,col.shape)
-        # print(row)
         x = self.conv2(F.dropout(F.relu(self.conv1(x, edge_index)), training=self.training), edge_index)
         return F.log_softmax(x, dim=1)
 
 class ginNet(torch.nn.Module):
     def __init__(self):
         super(ginNet, self).__init__()
-        dimHid = 32
+
         # sum mlp : ln -> relu ->ln
         nn1 = Sequential(Linear(num_features, dimHid), ReLU(), Linear(dimHid, dimHid))
         self.conv1 = GINConv(nn1)
@@ -103,13 +96,9 @@ class ginNet(torch.nn.Module):
         x = F.relu(self.conv5(x, edge_index))
         x = self.bn5(x)
 
-        # print("pre norm ",x)
-        # print("normed ",x)
-        # x = global_add_pool(x, 3)
-
         x = F.relu(self.fc1(x))
         # print("fc1",x.shape)
-        # x = F.dropout(x, p=0.5, training=self.training)
+        x = F.dropout(x, p=0.5, training=self.training)
         # x = F.dropout(x, p=0.5, training=dropout)
         x = self.fc2(x)
         # print("fc2",x.shape)
@@ -118,10 +107,10 @@ class ginNet(torch.nn.Module):
         softmaxed = F.log_softmax(x, dim=-1)
         return softmaxed
 
-# model = ginNet() # best
+model = ginNet() # best 1499 th, 0.6666666666666666 ,highest :  0.7126436781609196
 # model = gcnNet()
-model = gatN()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+# model = gatN()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
 
 
 # graph level.for node classify,add weight to the node?
@@ -157,14 +146,9 @@ def test(dataset):
         eqTotal=0
         isEq = yrealI.eq(ypredI).item() # 0 or 1
         eqTotal+=isEq
-        # print("pred", pred, ypredI, "yreal", yrealI, "boo", isEq)
-        # print("corr ",isEq)
-        # while(1):{}
-        # print("pred : ",pred,"real : " ,data.y)
-        # correct += pred.eq(yreal).sum().item()
         correct += isEq
     corr = correct / datasetLen
-    print("corr :" ,corr)
+    # print("corr :" ,corr)
     return corr
 
 
@@ -199,7 +183,7 @@ def readAsLines(fn):
 
 def fmap(f,xs):return list(map(f,xs))
 
-def readdata():
+def readdata(datalen):
     graphList = lambda x: (readAsLines(x + ".n"),
                        readAsLines(x + ".e"),
                        readAsLines(x + ".g"))
@@ -208,7 +192,7 @@ def readdata():
     # gdata
     # pat="/home/da/mass/n4jdata1/"
     pat="/home/da/mass/gdata/"
-    graphListTup=fmap(graphList, [pat+ str(i) for i in range(0, 280)])
+    graphListTup=fmap(graphList, [pat+ str(i) for i in range(0, datalen)])
     # print(graphListTup)
     def edg(e):
         es=e.split(',')
@@ -231,23 +215,26 @@ def readdata():
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 def start():
-    dataset = readdata()
-    splitat=21
+    dataset = readdata(1100)
+    splitat=87
     dataOk=fmap(lambda x:newData(x[0],x[1],x[2]),dataset)
     trainset=dataOk[splitat:]
     testset=dataOk[:splitat]
-
-    for epoch in range(1, 300):
-        test(testset)
+    hcoor=0
+    for epoch in range(1, 1500):
+        coor=test(testset)
+        if (coor>hcoor) : hcoor=coor
+        print(str(epoch) + " th,",coor,",highest : ",hcoor)
         for dat in trainset:
             train(dat)
 
 start()
-def printarr(x):
-    # newData(x,[],[])
-    t1=newtensor(x)
-    for epoch in range(1, 200):
-        print(t1)
+
+# def printarr(x):
+#     # newData(x,[],[])
+#     t1=newtensor(x)
+#     for epoch in range(1, 200):
+#         print(t1)
     #     print(type(x))
 # edge_index = torch.tensor([[0, 1],
 #                            [1, 0],
@@ -256,3 +243,9 @@ def printarr(x):
 # x = torch.tensor([[-1], [0], [1],[1],[1]], dtype=torch.float) # node features
 #
 # data = Data(x=x, edge_index=edge_index.t().contiguous(),y=torch.tensor([0,1]))
+
+# print("pred", pred, ypredI, "yreal", yrealI, "boo", isEq)
+# print("corr ",isEq)
+# while(1):{}
+# print("pred : ",pred,"real : " ,data.y)
+# correct += pred.eq(yreal).sum().item()
