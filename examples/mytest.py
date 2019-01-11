@@ -5,6 +5,7 @@ from torch.nn import Sequential, Linear, ReLU
 from torch_geometric.datasets import TUDataset
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import GCNConv, GINConv, GATConv, SplineConv
+from torch_geometric.nn.glob import global_sort_pool
 from fn import _
 # from fn.iters import *
 from torch_geometric.data import Data
@@ -24,7 +25,8 @@ class splineN(torch.nn.Module):
         self.conv1 = SplineConv(num_features, 16, dim=1, kernel_size=2)
         self.conv2 = SplineConv(16, num_classes, dim=1, kernel_size=2)
 
-    def forward(self, x, edge_index, edge_attr, dropout):
+    def forward(self, x, edge_index, dropout):
+        edge_attr=nt([0.1])
         # x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         x = F.dropout(x, training=self.training)
         x = F.elu(self.conv1(x, edge_index, edge_attr))
@@ -119,8 +121,11 @@ class ginNet(torch.nn.Module):
 
 
 model = ginNet()  # best 1499 th, 0.6666666666666666 ,highest :  0.7126436781609196
+# 1486 th, 0.7471264367816092 ,highest :  0.7471264367816092
+
 # model = gcnNet()
 # model = gatN()
+# model=splineN()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
 
 
@@ -132,6 +137,7 @@ def train(data):
 
     x_in = data.x
     output = modelp(x_in, data.edge_index, True)  # forward(self, x, edge_index, batch):
+    # global_sort_pool(output)
     summed = torch.sum(output, 0)
     # print("sumed:", output.shape,",,", summed.shape)
     # outputT = torch.t(output)
@@ -265,14 +271,14 @@ flatten = lambda l: [item for sublist in l for item in sublist]
 
 
 def start():
-    dataset = readdata(1100) # 1100
+    dataset = readdata(1110) # 1100
     splitat = 87
     dataOk = fmap(lambda x: newData(x[0], x[1], x[2]), dataset)
     trainset = dataOk[splitat:]
     testset = dataOk[:splitat]
     hcoor = 0
     coor = 0
-    for epoch in range(1, 900):
+    for epoch in range(1, 2500):
         if (coor > hcoor): hcoor = coor
         print(str(epoch) + " th,", coor, ",highest : ", hcoor)
         for dat in trainset:
