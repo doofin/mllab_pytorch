@@ -14,7 +14,10 @@ from torch_geometric.data import Data
 num_features = 61
 num_classes = 2
 dimHid = 32
-
+datacount=978
+splitat = 31
+# pat = "/home/da/mass/algd20k/"
+pat = "/home/da/mass/gdata/"
 
 def nt(x): return torch.tensor(x)
 
@@ -149,31 +152,31 @@ def train(data):
     loss = F.binary_cross_entropy(F.sigmoid(summed), ypred.float())
     # loss = F.binary_cross_entropy(output, data.y)
     loss.backward()
-    loss_all = loss.item()
+    lossVal = loss.item()
     optimizer.step()
-    # print(loss_all)
-    return loss_all
+    print(lossVal)
+    return lossVal
 
 
-def train1(data):
-    modelp = model
-    modelp.train()
-    optimizer.zero_grad()
-
-    x_in = data.x
-    output = modelp(x_in, data.edge_index, True)  # forward(self, x, edge_index, batch):
-    outputT = torch.t(output)
-
-    # print("x shape" ,x_in.shape , data.edge_index.shape)
-    # print(outputT.shape, data.y.shape)
-    # while (1): {}
-    loss = F.nll_loss(outputT, data.y) # incorrect
-    # loss = F.binary_cross_entropy(output, data.y)
-    loss.backward()
-    loss_all = loss.item()
-    optimizer.step()
-    # print(loss_all)
-    return loss_all
+# def train1(data):
+#     modelp = model
+#     modelp.train()
+#     optimizer.zero_grad()
+#
+#     x_in = data.x
+#     output = modelp(x_in, data.edge_index, True)  # forward(self, x, edge_index, batch):
+#     outputT = torch.t(output)
+#
+#     # print("x shape" ,x_in.shape , data.edge_index.shape)
+#     # print(outputT.shape, data.y.shape)
+#     # while (1): {}
+#     loss = F.nll_loss(outputT, data.y) # incorrect
+#     # loss = F.binary_cross_entropy(output, data.y)
+#     loss.backward()
+#     loss_all = loss.item()
+#     optimizer.step()
+#     print(loss_all)
+#     return loss_all
 
 
 def test(dataset):
@@ -242,8 +245,7 @@ def readdata(datalen):
 
     # [([ndsFeatStr],[edges],graphlab)]
     # gdata
-    # pat="/home/da/mass/n4jdata1/"
-    pat = "/home/da/mass/gdata/"
+
     graphListTup = fmap(graphList, [pat + str(i) for i in range(0, datalen)])
 
     # print(graphListTup)
@@ -271,13 +273,14 @@ flatten = lambda l: [item for sublist in l for item in sublist]
 
 
 def start():
-    dataset = readdata(1110) # 1100
-    splitat = 87
+    dataset = readdata(datacount) # 1100
+
     dataOk = fmap(lambda x: newData(x[0], x[1], x[2]), dataset)
     trainset = dataOk[splitat:]
     testset = dataOk[:splitat]
     hcoor = 0
     coor = 0
+    print("init:",test(testset))
     for epoch in range(1, 2500):
         if (coor > hcoor): hcoor = coor
         print(str(epoch) + " th,", coor, ",highest : ", hcoor)
