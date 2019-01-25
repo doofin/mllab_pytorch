@@ -2,22 +2,22 @@ import os.path as osp
 import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU
-from torch_geometric.datasets import TUDataset
-from torch_geometric.data import DataLoader
 from torch_geometric.nn import GCNConv, GINConv, GATConv, SplineConv
 from torch_geometric.nn.glob import global_sort_pool
 from fn import _
 # from fn.iters import *
 from torch_geometric.data import Data
 
-# num_features = 1
-num_features = 61
+
+num_features = 1
+# num_features = 61
 num_classes = 2
 dimHid = 32
-datacount=978
-splitat = 31
+datacount = 1500
+splitat = 81
 # pat = "/home/da/mass/algd20k/"
 pat = "/home/da/mass/gdata/"
+
 
 def nt(x): return torch.tensor(x)
 
@@ -29,7 +29,7 @@ class splineN(torch.nn.Module):
         self.conv2 = SplineConv(16, num_classes, dim=1, kernel_size=2)
 
     def forward(self, x, edge_index, dropout):
-        edge_attr=nt([0.1])
+        edge_attr = nt([0.1])
         # x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         x = F.dropout(x, training=self.training)
         x = F.elu(self.conv1(x, edge_index, edge_attr))
@@ -123,64 +123,26 @@ class ginNet(torch.nn.Module):
         return softmaxed
 
 
-model = ginNet()  # best 1499 th, 0.6666666666666666 ,highest :  0.7126436781609196
-# 1486 th, 0.7471264367816092 ,highest :  0.7471264367816092
-
-# model = gcnNet()
-# model = gatN()
-# model=splineN()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
-
-
 # graph level.for node classify,add weight to the node?
-def train(data):
-    modelp = model
+def train(data, modelp, optimizer):
+    # modelp = model
     modelp.train()
     optimizer.zero_grad()
 
     x_in = data.x
     output = modelp(x_in, data.edge_index, True)  # forward(self, x, edge_index, batch):
-    # global_sort_pool(output)
     summed = torch.sum(output, 0)
-    # print("sumed:", output.shape,",,", summed.shape)
-    # outputT = torch.t(output)
-    # print("x shape" ,x_in.shape , data.edge_index.shape)
-    # print(outputT.shape, data.y.shape)
-    # while(1):{}
-    # loss = F.nll_loss(outputT, data.y)
     ypred = data.y
     loss = F.binary_cross_entropy(F.sigmoid(summed), ypred.float())
-    # loss = F.binary_cross_entropy(output, data.y)
     loss.backward()
     lossVal = loss.item()
     optimizer.step()
-    print(lossVal)
+    # print(lossVal)
     return lossVal
 
 
-# def train1(data):
-#     modelp = model
-#     modelp.train()
-#     optimizer.zero_grad()
-#
-#     x_in = data.x
-#     output = modelp(x_in, data.edge_index, True)  # forward(self, x, edge_index, batch):
-#     outputT = torch.t(output)
-#
-#     # print("x shape" ,x_in.shape , data.edge_index.shape)
-#     # print(outputT.shape, data.y.shape)
-#     # while (1): {}
-#     loss = F.nll_loss(outputT, data.y) # incorrect
-#     # loss = F.binary_cross_entropy(output, data.y)
-#     loss.backward()
-#     loss_all = loss.item()
-#     optimizer.step()
-#     print(loss_all)
-#     return loss_all
-
-
-def test(dataset):
-    modelp = model
+def test(dataset, modelp):
+    # modelp = model
     modelp.eval()
     correct = 0
     datasetLen = len(dataset)
@@ -198,34 +160,12 @@ def test(dataset):
     # print("corr :" ,corr)
     return corr
 
-
 def newtensor(x): return torch.tensor(x)
-
 
 def newData(nodeFeats, edgeSyms, graphLab):
     return Data(x=torch.tensor(nodeFeats, dtype=torch.float),  # node features
                 edge_index=torch.tensor(edgeSyms).t().contiguous(),  # edge
                 y=torch.tensor(graphLab))  # graph label
-
-
-dt2 = newData([[-1], [0], [1], [1], [1]],
-              [[0, 1],
-               [1, 0],
-               [1, 2],
-               [2, 1]],
-              [0, 1])
-
-
-def startT():
-    for epoch in range(1, 2):
-        train(dt2)
-        test([dt2])
-
-
-def trainOnce(ndfeats, edge, graphlab):
-    dt = newData(ndfeats, edge, graphlab)
-    train(dt)
-
 
 # [([ndsFeat],[edges],graphlab)]
 def readAsLines(fn):
@@ -236,19 +176,14 @@ def readAsLines(fn):
 
 
 def fmap(f, xs): return list(map(f, xs))
-
+flatten = lambda l: [item for sublist in l for item in sublist]
 
 def readdata(datalen):
     graphList = lambda x: (readAsLines(x + ".n"),
                            readAsLines(x + ".e"),
                            readAsLines(x + ".g"))
-
-    # [([ndsFeatStr],[edges],graphlab)]
-    # gdata
-
     graphListTup = fmap(graphList, [pat + str(i) for i in range(0, datalen)])
 
-    # print(graphListTup)
     def edg(e):
         es = e.split(',')
         return (int(es[0]), int(es[1]))
@@ -256,42 +191,66 @@ def readdata(datalen):
     splitByComma = lambda xx: fmap(lambda x: int(x), xx.split(','))
     # [([ndsFeat Seq],[edgesTup],graphlab Seq)]
 
-    tst = graphListTup[0][2]
-    # print(tst)
-    print(newtensor([1, 0]).shape)
-    # print("ts")
-    # print(newtensor(fmap(nodeFeatF,tst)).reshape(2))
     datas = fmap(lambda x: (fmap(splitByComma, x[0]),
                             fmap(edg, x[1]),
                             flatten(fmap(splitByComma, x[2]))),
                  graphListTup)
-    # print(datas[0])
     return datas
 
 
-flatten = lambda l: [item for sublist in l for item in sublist]
+
 
 
 def start():
-    dataset = readdata(datacount) # 1100
+    import random
+    model = ginNet()  # best 1499 th, 0.6666666666666666 ,highest :  0.7126436781609196
+    # 1486 th, 0.7471264367816092 ,highest :  0.7471264367816092
+
+    # model = gcnNet()
+    # model = gatN()
+    # model=splineN()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
+    dataset = readdata(datacount)  # 1100
+    random.shuffle(dataset)
 
     dataOk = fmap(lambda x: newData(x[0], x[1], x[2]), dataset)
     trainset = dataOk[splitat:]
     testset = dataOk[:splitat]
-    hcoor = 0
+    highestCoor = 0
     coor = 0
-    print("init:",test(testset))
-    for epoch in range(1, 2500):
-        if (coor > hcoor): hcoor = coor
-        print(str(epoch) + " th,", coor, ",highest : ", hcoor)
-        for dat in trainset:
-            train(dat)
-        coor = test(testset)
+    print("train : ", len(trainset), "test : ", len(testset))
 
+    def newtest():
+        return test(testset, model)
+
+    print("init:", newtest())
+
+    # import matplotlib.pyplot as plt
+    # plt.plot([1,2,3,4])
+    # plt.ylabel('some numbers')
+    # plt.show()
+
+    for epoch in range(1, 2500):
+        if (coor > highestCoor): highestCoor = coor
+        if (coor > 0.67):
+            fn = "modParams" + str(coor)
+            print("saved : " + fn)
+            torch.save(model.state_dict(), fn)
+        print(str(epoch) + " th,", coor, ",highest : ", highestCoor)
+        coor = newtest()
+        for dat in trainset:
+            train(dat, model, optimizer)
+
+def loadModel(fn):
+    model = ginNet()
+    model.load_state_dict(torch.load(fn))
+    model.eval()
+
+    dataset = readdata(datacount)  # 1100
+    print("loaded model test acc : " + test(dataset, model))
+    return model
 
 start()
-
-
 # def printarr(x):
 #     # newData(x,[],[])
 #     t1=newtensor(x)
@@ -329,3 +288,23 @@ start()
 #
 #     r = F.binary_cross_entropy(F.sigmoid(nt([10.0, 10.0])), nt([0.0, 1.0]))
 #     print(r)
+
+# def train1(data):
+#     modelp = model
+#     modelp.train()
+#     optimizer.zero_grad()
+#
+#     x_in = data.x
+#     output = modelp(x_in, data.edge_index, True)  # forward(self, x, edge_index, batch):
+#     outputT = torch.t(output)
+#
+#     # print("x shape" ,x_in.shape , data.edge_index.shape)
+#     # print(outputT.shape, data.y.shape)
+#     # while (1): {}
+#     loss = F.nll_loss(outputT, data.y) # incorrect
+#     # loss = F.binary_cross_entropy(output, data.y)
+#     loss.backward()
+#     loss_all = loss.item()
+#     optimizer.step()
+#     print(loss_all)
+#     return loss_all
