@@ -1,42 +1,22 @@
-import os.path as osp
 import torch
 import torch.nn.functional as F
 from torch.nn import Sequential, Linear, ReLU
 from torch_geometric.nn import GCNConv, GINConv, GATConv, SplineConv
-from torch_geometric.nn.glob import global_sort_pool
-from fn import _
+# import os.path as osp
+# from torch_geometric.nn.glob import global_sort_pool
+# from fn import _
 # from fn.iters import *
 from torch_geometric.data import Data
-
+from myutils import *
 
 num_features = 1
 # num_features = 61
 num_classes = 2
 dimHid = 32
-datacount = 1500
-splitat = 81
+datacount = 6000
+splitat = 211
 # pat = "/home/da/mass/algd20k/"
 pat = "/home/da/mass/gdata/"
-
-
-def nt(x): return torch.tensor(x)
-
-
-class splineN(torch.nn.Module):
-    def __init__(self):
-        super(splineN, self).__init__()
-        self.conv1 = SplineConv(num_features, 16, dim=1, kernel_size=2)
-        self.conv2 = SplineConv(16, num_classes, dim=1, kernel_size=2)
-
-    def forward(self, x, edge_index, dropout):
-        edge_attr = nt([0.1])
-        # x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        x = F.dropout(x, training=self.training)
-        x = F.elu(self.conv1(x, edge_index, edge_attr))
-        x = F.dropout(x, training=self.training)
-        x = self.conv2(x, edge_index, edge_attr)
-        return F.log_softmax(x, dim=1)
-
 
 class gatN(torch.nn.Module):
     def __init__(self):
@@ -124,7 +104,7 @@ class ginNet(torch.nn.Module):
 
 
 # graph level.for node classify,add weight to the node?
-def train(data, modelp, optimizer):
+def trainOnce(data, modelp, optimizer):
     # modelp = model
     modelp.train()
     optimizer.zero_grad()
@@ -160,7 +140,6 @@ def test(dataset, modelp):
     # print("corr :" ,corr)
     return corr
 
-def newtensor(x): return torch.tensor(x)
 
 def newData(nodeFeats, edgeSyms, graphLab):
     return Data(x=torch.tensor(nodeFeats, dtype=torch.float),  # node features
@@ -173,10 +152,6 @@ def readAsLines(fn):
     r = f.read().strip().split('\n')
     f.close()
     return r
-
-
-def fmap(f, xs): return list(map(f, xs))
-flatten = lambda l: [item for sublist in l for item in sublist]
 
 def readdata(datalen):
     graphList = lambda x: (readAsLines(x + ".n"),
@@ -196,11 +171,6 @@ def readdata(datalen):
                             flatten(fmap(splitByComma, x[2]))),
                  graphListTup)
     return datas
-
-
-
-
-
 def start():
     import random
     model = ginNet()  # best 1499 th, 0.6666666666666666 ,highest :  0.7126436781609196
@@ -239,7 +209,7 @@ def start():
         print(str(epoch) + " th,", coor, ",highest : ", highestCoor)
         coor = newtest()
         for dat in trainset:
-            train(dat, model, optimizer)
+            trainOnce(dat, model, optimizer)
 
 def loadModel(fn):
     model = ginNet()
